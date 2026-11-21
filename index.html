@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conferidor de totais IBS e CBS</title>
+<meta name="description" content="Confira se os totais de IBS e CBS da sua NF-e batem com a soma dos itens antes de enviar à SEFAZ. Roda no seu navegador: o XML não sai do seu computador.">
+<style>
+  :root { --papel:#ffffff; --tinta:#172235; --tinta-2:#4a5568; --regua:#d6dce5; --faixa:#f2f5f9; --azul:#1d4f91;
+    --ok:#17784a; --ok-claro:#e3f3ea; --erro:#b42318; --erro-claro:#fbeae8; --aviso:#8a5a00; --aviso-claro:#fcf1dd; }
+  @media (prefers-color-scheme: dark) { :root { --papel:#11161f; --tinta:#e7ecf3; --tinta-2:#a7b1c2; --regua:#2c3646;
+    --faixa:#1a2230; --azul:#7fa8e0; --ok:#5fc48f; --ok-claro:#16301f; --erro:#f08a80; --erro-claro:#3a1a17; --aviso:#e0b45a; --aviso-claro:#33280f; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--papel); color:var(--tinta); font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  main { max-width:880px; margin:0 auto; padding:40px 16px 64px; }
+  h1 { font-size:clamp(28px,5vw,40px); line-height:1.12; margin:0 0 10px; letter-spacing:-0.01em; }
+  .lead { color:var(--tinta-2); font-size:18px; margin:0 0 6px; }
+  .priv { display:inline-block; margin:6px 0 26px; padding:6px 12px; border-radius:8px; background:var(--ok-claro); color:var(--ok); font-weight:600; font-size:14px; }
+  .abas { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+  .abas button { border:1px solid var(--regua); background:var(--faixa); color:var(--tinta); padding:8px 14px; border-radius:8px; cursor:pointer; font:inherit; }
+  .abas button[aria-selected="true"] { background:var(--azul); color:#fff; border-color:var(--azul); }
+  textarea { width:100%; min-height:220px; padding:12px; border:1px solid var(--regua); border-radius:10px; background:var(--faixa);
+    color:var(--tinta); font:13px/1.45 ui-monospace,Consolas,monospace; resize:vertical; }
+  .acoes { display:flex; gap:10px; margin:12px 0 26px; flex-wrap:wrap; align-items:center; }
+  .primario { background:var(--azul); color:#fff; border:0; padding:11px 18px; border-radius:9px; font:600 15px system-ui,sans-serif; cursor:pointer; }
+  .secundario { background:none; border:1px solid var(--regua); color:var(--tinta); padding:10px 14px; border-radius:9px; cursor:pointer; font:inherit; }
+  label.arquivo { color:var(--azul); cursor:pointer; text-decoration:underline; }
+  button:focus-visible, textarea:focus-visible, label:focus-within { outline:3px solid var(--azul); outline-offset:2px; }
+  .resultado { border-radius:12px; padding:18px 20px; margin-bottom:18px; }
+  .resultado.ok { background:var(--ok-claro); } .resultado.erro { background:var(--erro-claro); }
+  .resultado h2 { margin:0 0 8px; font-size:20px; }
+  .ok h2 { color:var(--ok); } .erro h2 { color:var(--erro); }
+  table { width:100%; border-collapse:collapse; margin-top:8px; font-variant-numeric:tabular-nums; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--regua); font-size:15px; }
+  th { color:var(--tinta-2); font-weight:600; font-size:13px; }
+  .avisos { background:var(--aviso-claro); color:var(--tinta); border-radius:10px; padding:12px 16px; margin-bottom:18px; }
+  .avisos strong { color:var(--aviso); }
+  section.sobre { margin-top:40px; border-top:1px solid var(--regua); padding-top:20px; color:var(--tinta-2); font-size:15px; }
+  section.sobre h2 { color:var(--tinta); font-size:18px; }
+  code { font-family:ui-monospace,Consolas,monospace; font-size:0.92em; }
+  a { color:var(--azul); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Conferidor de totais IBS e CBS</h1>
+  <p class="lead">Antes de enviar a nota à SEFAZ, confira se os totais de IBS e CBS batem com a soma dos itens. Um centavo de diferença já rejeita a nota.</p>
+  <span class="priv">Roda no seu navegador: o XML não sai do seu computador.</span>
+
+  <div class="abas" role="tablist" aria-label="O que conferir">
+    <button role="tab" aria-selected="true" data-modo="xml">XML da NF-e ou NFC-e</button>
+    <button role="tab" aria-selected="false" data-modo="calc">Resposta da Calculadora de Tributos</button>
+    <button role="tab" aria-selected="false" data-modo="ratear">Ratear centavos</button>
+  </div>
+
+  <textarea id="entrada" aria-label="Conteúdo para conferir" placeholder="Cole aqui o XML da nota (ou abra o arquivo abaixo)."></textarea>
+  <div class="acoes">
+    <button class="primario" id="conferir">Conferir totais</button>
+    <label class="arquivo">Abrir arquivo<input type="file" id="arquivo" accept=".xml,.json,.txt" hidden></label>
+    <button class="secundario" id="exemplo">Usar um exemplo</button>
+  </div>
+
+  <div id="saida" aria-live="polite"></div>
+
+  <section class="sobre">
+    <h2>O que é conferido</h2>
+    <p>As regras de validação da Nota Técnica 2025.002-RTC, versão 1.52 (setembro de 2026), páginas 70 e 71: o total do grupo
+      <code>IBSCBSTot</code> precisa ser igual à soma dos itens, sem tolerância.</p>
+    <table>
+      <thead><tr><th>Campo</th><th>Regra</th><th>Rejeição</th></tr></thead>
+      <tbody>
+        <tr><td>vIBSUF (IBS da UF)</td><td>W41-10</td><td>1080</td></tr>
+        <tr><td>vIBSMun (IBS do Município)</td><td>W46-10</td><td>1084</td></tr>
+        <tr><td>vIBS (IBS)</td><td>W47-10</td><td>1085</td></tr>
+        <tr><td>vCBS (CBS)</td><td>W56-10</td><td>1091</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Ratear centavos:</strong> cole o valor exato de cada item (com mais casas, um por linha). A ferramenta arredonda o total
+      pelo arredondamento bancário (o mesmo da calculadora oficial) e distribui os centavos pelo maior resto, para a soma dos itens
+      fechar com o total.</p>
+    <p>Ferramenta independente e gratuita, sem vínculo com a Receita Federal. Não substitui a validação da SEFAZ nem orientação
+      contábil. Código aberto (MIT).</p>
+  </section>
+</main>
+<script type="module">
+import { conferir, lerXmlNFe, lerRespostaCalculadora, ratear, reais } from "./src/conferidor.js";
+
+const $ = (id) => document.getElementById(id);
+let modo = "xml";
+const dicas = {
+  xml: "Cole aqui o XML da nota (ou abra o arquivo abaixo).",
+  calc: "Cole aqui a resposta JSON da Calculadora de Tributos (regime regular).",
+  ratear: "Um valor exato por linha, por exemplo:\n0.005\n0.005\n0.005",
+};
+const exemplos = {
+  xml: `<NFe><infNFe><det nItem="1"><imposto><IBSCBS><gIBSCBS><gIBSUF><vIBSUF>0.00</vIBSUF></gIBSUF><gIBSMun><vIBSMun>0.00</vIBSMun></gIBSMun><vIBS>0.00</vIBS><gCBS><vCBS>13.52</vCBS></gCBS></gIBSCBS></IBSCBS></imposto></det>
+<det nItem="2"><imposto><IBSCBS><gIBSCBS><gIBSUF><vIBSUF>0.00</vIBSUF></gIBSUF><gIBSMun><vIBSMun>0.00</vIBSMun></gIBSMun><vIBS>0.00</vIBS><gCBS><vCBS>13.53</vCBS></gCBS></gIBSCBS></IBSCBS></imposto></det>
+<total><IBSCBSTot><gIBS><gIBSUF><vIBSUF>0.00</vIBSUF></gIBSUF><gIBSMun><vIBSMun>0.00</vIBSMun></gIBSMun><vIBS>0.00</vIBS></gIBS><gCBS><vCBS>27.06</vCBS></gCBS></IBSCBSTot></total></infNFe></NFe>`,
+  calc: JSON.stringify({ objetos: [1, 2, 3].map((n) => ({ nObj: n, tribCalc: { IBSCBS: { gIBSCBS: { gIBSUF: { vIBSUF: "0.00" }, gIBSMun: { vIBSMun: "0.00" }, vIBS: "0.00", gCBS: { vCBS: "0.00" } } } } })),
+    total: { tribCalc: { IBSCBSTot: { gIBS: { gIBSUF: { vIBSUF: "0.02" }, gIBSMun: { vIBSMun: "0.02" }, vIBS: "0.03" }, gCBS: { vCBS: "0.02" } } } } }, null, 1),
+  ratear: "0.005\n0.005\n0.005",
+};
+
+document.querySelectorAll('[role="tab"]').forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll('[role="tab"]').forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+  modo = b.dataset.modo; $("entrada").placeholder = dicas[modo]; $("entrada").value = ""; $("saida").innerHTML = "";
+  $("conferir").textContent = modo === "ratear" ? "Ratear centavos" : "Conferir totais";
+}));
+$("exemplo").addEventListener("click", () => { $("entrada").value = exemplos[modo]; executar(); });
+$("arquivo").addEventListener("change", async (e) => { const f = e.target.files[0]; if (f) { $("entrada").value = await f.text(); executar(); } });
+$("conferir").addEventListener("click", executar);
+
+const br = (c) => reais(c).replace(".", ",");
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function executar() {
+  const v = $("entrada").value.trim();
+  if (!v) { $("saida").innerHTML = '<div class="avisos">Cole o conteúdo ou abra um arquivo para conferir.</div>'; return; }
+  try {
+    if (modo === "ratear") return mostrarRateio(v);
+    const dados = modo === "xml" ? lerXmlNFe(v) : lerRespostaCalculadora(v);
+    mostrar(conferir(dados), dados.itens.length);
+  } catch (e) {
+    $("saida").innerHTML = `<div class="resultado erro"><h2>Não consegui ler o conteúdo</h2><p>${esc(e.message)}. Confira se colou o ${modo === "xml" ? "XML completo da nota" : "JSON completo da resposta"}.</p></div>`;
+  }
+}
+
+function mostrar(r, n) {
+  const av = r.avisos.length ? `<div class="avisos"><strong>Avisos</strong><ul>${r.avisos.map((a) => `<li>${esc(a)}</li>`).join("")}</ul></div>` : "";
+  if (r.ok) {
+    $("saida").innerHTML = `<div class="resultado ok"><h2>Os totais batem com a soma dos ${n} itens</h2><p>Nenhuma das regras W41-10, W46-10, W47-10 e W56-10 rejeitaria esta nota.</p></div>${av}`;
+    return;
+  }
+  const linhas = r.achados.map((a) => `<tr><td>${a.campo}</td><td>${br(a.total)}</td><td>${br(a.somaItens)}</td><td>${br(a.diferenca)}</td><td>${a.regra} / ${a.rejeicao}</td></tr>`).join("");
+  $("saida").innerHTML = `<div class="resultado erro"><h2>${r.achados.length === 1 ? "1 total não bate" : r.achados.length + " totais não batem"} com a soma dos itens</h2>
+    <p>A SEFAZ rejeitaria esta nota. Ajuste os valores dos itens (veja "Ratear centavos") ou recalcule o total pela soma.</p>
+    <table><thead><tr><th>Campo</th><th>Total</th><th>Soma dos itens</th><th>Diferença</th><th>Regra / rejeição</th></tr></thead><tbody>${linhas}</tbody></table></div>${av}`;
+}
+
+function mostrarRateio(v) {
+  const vals = v.split(/[\s;]+/).filter(Boolean);
+  const { itens, total } = ratear(vals);
+  const linhas = itens.map((c, i) => `<tr><td>${i + 1}</td><td>${esc(vals[i])}</td><td>${br(c)}</td></tr>`).join("");
+  $("saida").innerHTML = `<div class="resultado ok"><h2>Total R$ ${br(total)}, igual à soma dos ${itens.length} itens</h2>
+    <table><thead><tr><th>Item</th><th>Valor exato</th><th>Valor no documento</th></tr></thead><tbody>${linhas}</tbody></table></div>`;
+}
+</script>
+</body>
+</html>

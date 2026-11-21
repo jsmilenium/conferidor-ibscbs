@@ -1,0 +1,8 @@
+{
+  "name": "conferidor-ibscbs",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "Confere os totais de IBS e CBS da NF-e/NFC-e contra a soma dos itens (regras W41-10, W46-10, W47-10 e W56-10 da NT 2025.002-RTC) e rateia centavos para o total fechar.",
+  "scripts": { "test": "node --test" }
+}
